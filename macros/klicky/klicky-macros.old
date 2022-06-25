@@ -288,11 +288,11 @@ gcode:
         # if necessary do some actions after attaching the probe
         _RetractKlickyDock
         
-        ## Go to Z safe distance
+       ## Go to Z safe distance
         {% if ((printer.toolhead.position.z < safe_z) or (docklocation_z != -128 and docklocation_z < safe_z ))%}
           _KlickyDebug msg="Attach_Probe moving to a safe Z position: G0 Z{safe_z} F{z_drop_feedrate} from {printer.toolhead.position.z}"
           G0 Z{safe_z} F{z_drop_feedrate}
-        {% endif %}
+        {% endif %}   
 
         _Park_Toolhead
 
@@ -410,7 +410,7 @@ gcode:
         _KlickyDebug msg="Dock_Probe moving away from the dock to G0 X{docklocation_x|int + dockmove_x|int - attachmove_x|int} Y{docklocation_y|int + dockmove_y|int - attachmove_y|int} F{release_feedrate}"
         G0 X{docklocation_x|int + dockmove_x|int - attachmove_x|int} Y{docklocation_y|int + dockmove_y|int - attachmove_y|int} F{release_feedrate}
 
-        ## Go to Z safe distance
+       ## Go to Z safe distance
         {% if ((printer.toolhead.position.z < safe_z) or (docklocation_z != -128 and docklocation_z < safe_z ))%}
           _KlickyDebug msg="Dock_Probe moving to a safe Z position: G0 Z{safe_z} F{z_drop_feedrate} from {printer.toolhead.position.z}"
           G0 Z{safe_z} F{z_drop_feedrate}
@@ -545,15 +545,12 @@ gcode:
     # Safe Z for travel
     {% set safe_z = printer["gcode_macro _User_Variables"].safe_z %}
     {% set enable_z_hop = printer["gcode_macro _User_Variables"].enable_z_hop %}
-    {% set kinematic_z = 0 %}
-    {% set dock_on_zhome = printer["gcode_macro _User_Variables"].dock_on_zhome|default(False) %}
     {% set attachmove_x = printer["gcode_macro _User_Variables"].attachmove_x|default(0) %}
     {% set attachmove_y = printer["gcode_macro _User_Variables"].attachmove_y|default(0) %}
     {% set attachmove_z = printer["gcode_macro _User_Variables"].attachmove_z|default(0) %}
     {% set z_drop_feedrate = printer["gcode_macro _User_Variables"].z_drop_speed * 60 %}
     {% set travel_feedrate = printer["gcode_macro _User_Variables"].travel_speed * 60 %}
-    {% set home_backoff_x = printer["gcode_macro _User_Variables"].home_backoff_x|default(0) %}
-    {% set home_backoff_y = printer["gcode_macro _User_Variables"].home_backoff_y|default(0) %}
+    {% set home_backoff = printer["gcode_macro _User_Variables"].home_backoff|default(0) %}
     {% set override_homing = printer["gcode_macro _User_Variables"].override_homing|default('') %}
 
     #checks if the variable definitions are up to date
@@ -614,8 +611,6 @@ gcode:
     {% if 'z' not in printer.toolhead.homed_axes %}
          {% if not enable_z_hop %} # Disables safe_z
             _KlickyDebug msg="homing_override z_hop disabled"
-            #preserve safe_z to use as the SET KINEMATIC Z position, so that the toolhead does not move to pick up the probe
-            {% set kinematic_z = safe_z %}
             {% set safe_z = 0 %}
         {% endif %}
     {% endif %}
@@ -633,8 +628,8 @@ gcode:
             {% if verbose %}
                 { action_respond_info("Z not homed, forcing full G28") }
             {% endif %}
-            _KlickyDebug msg="homing_override Z not homed, setting position as X=Y=0 Z={kinematic_z}"
-            SET_KINEMATIC_POSITION X=0 Y=0 Z={kinematic_z}
+            _KlickyDebug msg="homing_override Z not homed, setting position as X=Y=Z=0"
+            SET_KINEMATIC_POSITION X=0 Y=0 Z=0
             _KlickyDebug msg="homing_override toolhead too low, raising it by {safe_z}mm"
             G0 Z{safe_z} F{z_drop_feedrate}
             {% set home_x, home_y, home_z = True, True, True %}
@@ -660,13 +655,13 @@ gcode:
                 _KlickyDebug msg="homing_override Homing Y G28 Y0"
                 G28 Y0
                 # does it need to back away from the home position
-                {% if home_backoff_y != 0 %}
+                {% if home_backoff != 0 %}
                     {% if (printer.configfile.settings.stepper_y.position_endstop > (printer.configfile.settings.stepper_y.position_min|default(0) + printer.configfile.settings.stepper_y.position_max)/2) %}
-                        _KlickyDebug msg="homing_override backing off Y endstop, G0 Y{printer.configfile.settings.stepper_y.position_endstop-home_backoff_y|int} F{travel_feedrate}"
-                        G0 Y{printer.configfile.settings.stepper_y.position_endstop - home_backoff_y|int} F{travel_feedrate}
+                        _KlickyDebug msg="homing_override backing off Y endstop, G0 Y{printer.configfile.settings.stepper_y.position_endstop-home_backoff|int} F{travel_feedrate}"
+                        G0 Y{printer.configfile.settings.stepper_y.position_endstop - home_backoff|int} F{travel_feedrate}
                     {% else %}
-                        _KlickyDebug msg="homing_override backing off Y endstop, G0 Y{printer.configfile.settings.stepper_y.position_endstop + home_backoff_y|int} F{travel_feedrate}"
-                        G0 Y{printer.configfile.settings.stepper_y.position_endstop + home_backoff_y|int} F{travel_feedrate}
+                        _KlickyDebug msg="homing_override backing off Y endstop, G0 Y{printer.configfile.settings.stepper_y.position_endstop + home_backoff|int} F{travel_feedrate}"
+                        G0 Y{printer.configfile.settings.stepper_y.position_endstop + home_backoff|int} F{travel_feedrate}
                     {%endif %}
                 {%endif %}
             {% endif %}
@@ -687,13 +682,13 @@ gcode:
             _KlickyDebug msg="homing_override Homing X G28 X0"
             G28 X0
             # does it need to back away from the home position
-            {% if home_backoff_x != 0 %}
+            {% if home_backoff != 0 %}
                 {% if (printer.configfile.settings.stepper_x.position_endstop > (printer.configfile.settings.stepper_x.position_min|default(0) + printer.configfile.settings.stepper_x.position_max)/2) %}
-                    _KlickyDebug msg="homing_override backing off X endstop, G0 X{printer.configfile.settings.stepper_x.position_endstop - home_backoff_x|int} F{travel_feedrate}"
-                    G0 X{printer.configfile.settings.stepper_x.position_endstop - home_backoff_x|int} F{travel_feedrate}
+                    _KlickyDebug msg="homing_override backing off X endstop, G0 X{printer.configfile.settings.stepper_x.position_endstop - home_backoff|int} F{travel_feedrate}"
+                    G0 X{printer.configfile.settings.stepper_x.position_endstop - home_backoff|int} F{travel_feedrate}
                 {% else %}
-                    _KlickyDebug msg="homing_override backing off X endstop, G0 X{printer.configfile.settings.stepper_x.position_endstop + home_backoff_x|int} F{travel_feedrate}"
-                    G0 X{printer.configfile.settings.stepper_x.position_endstop + home_backoff_x|int} F{travel_feedrate}
+                    _KlickyDebug msg="homing_override backing off X endstop, G0 X{printer.configfile.settings.stepper_x.position_endstop + home_backoff|int} F{travel_feedrate}"
+                    G0 X{printer.configfile.settings.stepper_x.position_endstop + home_backoff|int} F{travel_feedrate}
                 {%endif %}
             {%endif %}
         {% endif %}
@@ -710,13 +705,13 @@ gcode:
         {% else %}
             _KlickyDebug msg="homing_override Homing Y G28 Y0"
             G28 Y0
-            {% if home_backoff_y != 0 %}
+            {% if home_backoff != 0 %}
                 {% if (printer.configfile.settings.stepper_y.position_endstop > (printer.configfile.settings.stepper_y.position_min|default(0) + printer.configfile.settings.stepper_y.position_max)/2) %}
-                    _KlickyDebug msg="homing_override backing off Y endstop, G0 Y{printer.configfile.settings.stepper_y.position_endstop - home_backoff_y|int} F{travel_feedrate}"
-                    G0 Y{printer.configfile.settings.stepper_y.position_endstop - home_backoff_y|int} F{travel_feedrate}
+                    _KlickyDebug msg="homing_override backing off Y endstop, G0 Y{printer.configfile.settings.stepper_y.position_endstop - home_backoff|int} F{travel_feedrate}"
+                    G0 Y{printer.configfile.settings.stepper_y.position_endstop - home_backoff|int} F{travel_feedrate}
                 {% else %}
-                    _KlickyDebug msg="homing_override backing off Y endstop, G0 Y{printer.configfile.settings.stepper_y.position_endstop + home_backoff_y|int} F{travel_feedrate}"
-                    G0 Y{printer.configfile.settings.stepper_y.position_endstop + home_backoff_y|int} F{travel_feedrate}
+                    _KlickyDebug msg="homing_override backing off Y endstop, G0 Y{printer.configfile.settings.stepper_y.position_endstop + home_backoff|int} F{travel_feedrate}"
+                    G0 Y{printer.configfile.settings.stepper_y.position_endstop + home_backoff|int} F{travel_feedrate}
                 {%endif %}
             {%endif %}
         {% endif %}
@@ -727,7 +722,7 @@ gcode:
             { action_respond_info("Homing Z") }
         {% endif %}
 
-        # if probe is configured as endstop, attach it, else check if the probe needs to be docked if attached
+        # if probe is configured as endstop, attach it, else dock the probe if attached
         {% if printer['configfile'].config["stepper_z"]["endstop_pin"] == 'probe:z_virtual_endstop' %}
             _KlickyDebug msg="homing_override probe configured as a virtual Z endstop attaching probe"                    
             Attach_Probe
@@ -735,7 +730,7 @@ gcode:
             {% if leave_probe_attached %}
                 _Probe_Lock
             {% endif %}
-        {% elif dock_on_zhome == True %}
+        {% else %}
             Dock_Probe
         {% endif %}
 
@@ -745,9 +740,6 @@ gcode:
         {% if printer['configfile'].config["stepper_z"]["endstop_pin"] == 'probe:z_virtual_endstop' %}
             _KlickyDebug msg="homing_override probe no longer required, docking probe"                    
             Dock_Probe
-        {% endif %}
-        {% if dock_on_zhome == False %}
-           Dock_Probe
         {% endif %}
     {% endif %}
     _CheckProbe action=query
@@ -793,7 +785,7 @@ gcode:
     {% if not 'xy' in printer.toolhead.homed_axes %}
         { action_raise_error("Must Home X and Y Axis First!") }
     {% else %}
-        _KlickyDebug msg="_Home_Z XY Axis homed"
+        _KlickyDebug msg="_Home_Z Axis homed"
         {% if not 'z' in printer.toolhead.homed_axes %}
             {% if verbose %}
                 { action_respond_info("Resetting Z position to zero") }
